@@ -1,0 +1,57 @@
+name: Build Amar Dokan Android App
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Extract Android project
+        run: |
+          mkdir -p android-project
+          unzip -q AmarDokanAndroid.zip -d android-project
+          echo "Extracted files:"
+          find android-project -maxdepth 3 -type f | head -100
+
+      - name: Find project directory
+        id: find_project
+        run: |
+          PROJECT_DIR=$(find "$GITHUB_WORKSPACE/android-project" -name "gradlew" -type f -print -quit | xargs -r dirname)
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "ERROR: gradlew was not found."
+            find "$GITHUB_WORKSPACE/android-project" -maxdepth 5 -type f
+            exit 1
+          fi
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
+          echo "Android project found at: $PROJECT_DIR"
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Build APK
+        working-directory: ${{ steps.find_project.outputs.PROJECT_DIR }}
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --stacktrace
+
+      - name: Find APK
+        run: |
+          find android-project -type f -name "*.apk" -print
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Amar-Dokan-APK
+          path: android-project/**/build/outputs/apk/**/*.apk
+          if-no-files-found: error
