@@ -1,4 +1,4 @@
-name: Build Amar Dokan APK
+name: Build Amar Dokan Android App
 
 on:
   push:
@@ -14,59 +14,64 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
       - name: Extract Android project
         run: |
           rm -rf android-project
           mkdir android-project
-
           unzip -q AmarDokanAndroid.zip -d android-project
 
-          echo "Extracted files:"
-          find android-project -maxdepth 3 -type f | head -100
-
-      - name: Find Android project
+      - name: Find project directory
         id: project
         run: |
-          PROJECT_DIR=$(find android-project -type f \( -name "settings.gradle" -o -name "settings.gradle.kts" \) -print -quit | xargs dirname)
+          PROJECT_DIR=$(find "$GITHUB_WORKSPACE/android-project" \
+            -type f \
+            \( -name "settings.gradle" -o -name "settings.gradle.kts" \) \
+            -print -quit | xargs dirname)
 
           if [ -z "$PROJECT_DIR" ]; then
-            echo "ERROR: Android project root not found!"
+            echo "ERROR: settings.gradle was not found."
             exit 1
           fi
 
-          echo "Android project found at: $PROJECT_DIR"
+          echo "Android project found:"
+          echo "$PROJECT_DIR"
+
           echo "project_dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
 
-      - name: Create Gradle Wrapper if missing
+      - name: Create Gradle Wrapper
         working-directory: ${{ steps.project.outputs.project_dir }}
         run: |
-          if [ ! -f "./gradlew" ]; then
-            echo "gradlew not found. Creating Gradle Wrapper..."
+          if [ ! -f "gradlew" ]; then
+            echo "gradlew not found."
+            echo "Creating Gradle Wrapper..."
             gradle wrapper --gradle-version 8.7
           fi
 
-          chmod +x ./gradlew
+          chmod +x gradlew
 
-      - name: Build Debug APK
+      - name: Build APK
         working-directory: ${{ steps.project.outputs.project_dir }}
         run: |
           ./gradlew assembleDebug --stacktrace
 
       - name: Find APK
         run: |
-          echo "APK files:"
-          find android-project -type f -name "*.apk" -print
+          echo "Generated APK files:"
+          find "$GITHUB_WORKSPACE/android-project" \
+            -type f \
+            -name "*.apk" \
+            -print
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
